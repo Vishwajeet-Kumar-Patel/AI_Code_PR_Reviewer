@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import PRCard from '@/components/PRCard';
-import { Filter, Plus, RefreshCw } from 'lucide-react';
+import { Filter, Plus, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import apiClient from '@/lib/api-client';
 import type { PullRequest, PRFilter } from '@/types';
 
@@ -12,22 +12,37 @@ export default function Dashboard() {
   const router = useRouter();
   const [pullRequests, setPullRequests] = useState<PullRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [backendConnected, setBackendConnected] = useState(false);
   const [filter, setFilter] = useState<PRFilter>({
     status: 'open',
     sort: 'newest',
   });
 
   useEffect(() => {
+    checkBackendConnection();
     loadPullRequests();
   }, [filter]);
+
+  const checkBackendConnection = async () => {
+    try {
+      await apiClient.healthCheck();
+      setBackendConnected(true);
+    } catch (error) {
+      setBackendConnected(false);
+      console.error('Backend connection failed:', error);
+    }
+  };
 
   const loadPullRequests = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await apiClient.listPullRequests(filter);
       setPullRequests(response.items);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load pull requests:', error);
+      setError(error.message || 'Failed to load pull requests from GitHub');
     } finally {
       setLoading(false);
     }
@@ -41,10 +56,40 @@ export default function Dashboard() {
     <Layout user={{ name: 'Vishwajeet Kumar', avatar_url: '' }}>
       <div className="p-6">
         {/* Page header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white mb-2">Pull Request Analysis Dashboard</h1>
-          <p className="text-gray-400">Monitor and analyze pull requests across your repositories</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-2">Pull Request Analysis Dashboard</h1>
+            <p className="text-gray-400">Monitor and analyze pull requests across your repositories</p>
+          </div>
+          {/* Connection Status */}
+          <div className="flex items-center space-x-2">
+            {backendConnected ? (
+              <>
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <span className="text-sm text-green-500">Connected to GitHub</span>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <span className="text-sm text-red-500">Backend Disconnected</span>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 bg-red-900/20 border border-red-700 rounded-lg p-4 flex items-start space-x-3">
+            <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+            <div>
+              <p className="text-red-400 font-medium">Error loading pull requests</p>
+              <p className="text-red-300 text-sm mt-1">{error}</p>
+              <p className="text-gray-400 text-sm mt-2">
+                Make sure your GitHub token is valid and you have access to repositories with open PRs.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="bg-dark-800 border border-dark-700 rounded-lg p-4 mb-6">

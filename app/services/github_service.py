@@ -282,3 +282,112 @@ class GitHubService:
         except GithubException as e:
             logger.error(f"Failed to create review: {e}")
             return False
+    
+    def list_user_repositories(self, max_repos: int = 30) -> List[Dict[str, Any]]:
+        """List repositories for the authenticated user"""
+        try:
+            user = self.client.get_user()
+            repos = []
+            
+            for repo in user.get_repos()[:max_repos]:
+                repos.append({
+                    "id": repo.id,
+                    "owner": repo.owner.login,
+                    "name": repo.name,
+                    "full_name": repo.full_name,
+                    "description": repo.description,
+                    "language": repo.language,
+                    "private": repo.private,
+                    "stars": repo.stargazers_count,
+                    "forks": repo.forks_count,
+                    "updated_at": repo.updated_at.isoformat() if repo.updated_at else None,
+                })
+            
+            logger.info(f"Listed {len(repos)} repositories")
+            return repos
+        except GithubException as e:
+            logger.error(f"Failed to list repositories: {e}")
+            return []
+    
+    def search_pull_requests(
+        self, 
+        repo_name: Optional[str] = None,
+        state: str = "open",
+        author: Optional[str] = None,
+        max_results: int = 20
+    ) -> List[Dict[str, Any]]:
+        """Search for pull requests"""
+        try:
+            prs = []
+            
+            if repo_name:
+                # Get PRs for specific repository
+                repo = self.client.get_repo(repo_name)
+                pr_list = repo.get_pulls(state=state if state != "all" else "all")
+                
+                for pr in pr_list[:max_results]:
+                    if author and pr.user.login != author:
+                        continue
+                    
+                    prs.append({
+                        "id": pr.id,
+                        "repository_id": pr.base.repo.id,
+                        "pr_number": pr.number,
+                        "title": pr.title,
+                        "description": pr.body,
+                        "author": pr.user.login,
+                        "state": pr.state,
+                        "base_branch": pr.base.ref,
+                        "head_branch": pr.head.ref,
+                        "created_at": pr.created_at.isoformat() if pr.created_at else None,
+                        "updated_at": pr.updated_at.isoformat() if pr.updated_at else None,
+                        "repository": {
+                            "id": pr.base.repo.id,
+                            "owner": pr.base.repo.owner.login,
+                            "name": pr.base.repo.name,
+                            "full_name": pr.base.repo.full_name,
+                            "description": pr.base.repo.description,
+                            "language": pr.base.repo.language,
+                        }
+                    })
+            else:
+                # Search across all accessible repositories
+                user = self.client.get_user()
+                query = f"is:pr is:{state if state != 'all' else 'open'} author:{author or user.login}"
+                
+                search_results = self.client.search_issues(query=query)
+                
+                for issue in list(search_results)[:max_results]:
+                    if not hasattr(issue, 'pull_request'):
+                        continue
+                    
+                    # Get full PR data
+                    pr = issue.repository.get_pull(issue.number)
+                    
+                    prs.append({
+                        "id": pr.id,
+                        "repository_id": pr.base.repo.id,
+                        "pr_number": pr.number,
+                        "title": pr.title,
+                        "description": pr.body,
+                        "author": pr.user.login,
+                        "state": pr.state,
+                        "base_branch": pr.base.ref,
+                        "head_branch": pr.head.ref,
+                        "created_at": pr.created_at.isoformat() if pr.created_at else None,
+                        "updated_at": pr.updated_at.isoformat() if pr.updated_at else None,
+                        "repository": {
+                            "id": pr.base.repo.id,
+                            "owner": pr.base.repo.owner.login,
+                            "name": pr.base.repo.name,
+                            "full_name": pr.base.repo.full_name,
+                            "description": pr.base.repo.description,
+                            "language": pr.base.repo.language,
+                        }
+                    })
+            
+            logger.info(f"Found {len(prs)} pull requests")
+            return prs
+        except GithubException as e:
+            logger.error(f"Failed to search pull requests: {e}")
+            return []
