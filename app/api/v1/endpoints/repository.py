@@ -106,16 +106,18 @@ async def list_all_pull_requests(
     List all pull requests across repositories
     
     Returns a paginated list of pull requests with filtering and sorting.
+    Now optimized with caching and reduced API calls!
     """
     try:
         logger.info(f"Listing all PRs with filters: status={status}, repository={repository}")
         
-        # Fetch real data from GitHub
+        # Fetch real data from GitHub (with Redis caching!)
+        # Reduced max_results for faster initial load
         prs = github_service.search_pull_requests(
             repo_name=repository,
             state=status if status else "open",
             author=author,
-            max_results=per_page * 2  # Fetch more to allow for filtering
+            max_results=per_page  # Reduced from per_page * 2 for faster load
         )
         
         # Apply search filter if provided

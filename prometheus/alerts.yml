@@ -1,0 +1,97 @@
+# Prometheus alerting rules
+groups:
+  - name: api_alerts
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors/sec"
+
+      - alert: SlowAPIResponse
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow API response time"
+          description: "95th percentile response time is {{ $value }}s"
+
+  - name: review_alerts
+    interval: 30s
+    rules:
+      - alert: LowCodeQualityScore
+        expr: avg(code_quality_score) < 60
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low average code quality score"
+          description: "Average code quality score is {{ $value }}"
+
+      - alert: HighSecurityRisk
+        expr: rate(reviews_total{security_score<50}[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High rate of low security scores"
+          description: "{{ $value }} reviews/sec with low security scores"
+
+  - name: ai_alerts
+    interval: 30s
+    rules:
+      - alert: AIAPIFailure
+        expr: rate(ai_requests_total{status="error"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High AI API failure rate"
+          description: "AI API failure rate is {{ $value }} failures/sec"
+
+      - alert: HighAILatency
+        expr: histogram_quantile(0.95, rate(ai_request_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High AI API latency"
+          description: "95th percentile AI API latency is {{ $value }}s"
+
+  - name: github_alerts
+    interval: 30s
+    rules:
+      - alert: GitHubRateLimitLow
+        expr: github_api_rate_limit_remaining < 100
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GitHub API rate limit running low"
+          description: "Only {{ $value }} requests remaining"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      - alert: HighDatabaseLatency
+        expr: histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database query latency"
+          description: "95th percentile query time is {{ $value }}s"
+
+      - alert: TooManyDatabaseConnections
+        expr: db_connections_active > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many active database connections"
+          description: "{{ $value }} active connections"

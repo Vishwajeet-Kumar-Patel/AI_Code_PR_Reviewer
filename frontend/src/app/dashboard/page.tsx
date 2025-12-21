@@ -38,6 +38,15 @@ export default function Dashboard() {
     try {
       setLoading(true);
       setError(null);
+      
+      // Check if backend is connected first
+      if (!backendConnected) {
+        const connected = await apiClient.healthCheck().then(() => true).catch(() => false);
+        setBackendConnected(connected);
+        if (!connected) {
+          throw new Error('Backend server is not responding');
+        }
+      }
       const response = await apiClient.listPullRequests(filter);
       setPullRequests(response.items);
     } catch (error: any) {
@@ -162,8 +171,40 @@ export default function Dashboard() {
               <p className="mt-4 text-gray-400">Loading pull requests...</p>
             </div>
           ) : pullRequests.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-400">No pull requests found</p>
+            <div className="bg-dark-800 border border-dark-700 rounded-lg p-12 text-center">
+              <div className="max-w-md mx-auto">
+                <div className="mb-4">
+                  <svg className="w-16 h-16 mx-auto text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">No Pull Requests Found</h3>
+                <p className="text-gray-400 mb-6">
+                  Get started by adding a repository or checking your GitHub token configuration.
+                </p>
+                <div className="space-y-3 text-left bg-dark-900 rounded-lg p-4 mb-6">
+                  <h4 className="text-sm font-semibold text-white">Quick Setup:</h4>
+                  <ol className="text-sm text-gray-400 space-y-2 list-decimal list-inside">
+                    <li>Go to <a href="/repositories" className="text-primary-500 hover:underline">Repositories</a> page</li>
+                    <li>Add your GitHub repositories</li>
+                    <li>Open pull requests will appear here automatically</li>
+                  </ol>
+                </div>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={() => router.push('/repositories')}
+                    className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    Add Repository
+                  </button>
+                  <button
+                    onClick={loadPullRequests}
+                    className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg font-medium transition-colors"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

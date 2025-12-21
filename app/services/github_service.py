@@ -1,6 +1,8 @@
 from github import Github, GithubException
 from typing import List, Optional, Dict, Any
 import base64
+import json
+from functools import wraps
 from app.core.config import settings
 from app.core.logging import logger
 from app.models.pr_data import (
@@ -12,6 +14,45 @@ from app.models.pr_data import (
     FileDiff,
     DiffHunk,
 )
+
+
+def cache_with_redis(expire_seconds: int = 600):
+    """Cache decorator using Redis"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # Try to import redis, if not available, skip caching
+            try:
+                import redis
+                # Create cache key from function name and arguments
+                cache_key = f"github_cache:{func.__name__}:{str(args)}:{str(kwargs)}"
+                
+                # Try to get from cache
+                try:
+                    r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+                    cached = r.get(cache_key)
+                    if cached:
+                        logger.info(f"Cache hit for {func.__name__}")
+                        return json.loads(cached)
+                except Exception as e:
+                    logger.warning(f"Redis cache read failed: {e}")
+                
+                # Execute function
+                result = func(self, *args, **kwargs)
+                
+                # Store in cache
+                try:
+                    r.setex(cache_key, expire_seconds, json.dumps(result))
+                    logger.info(f"Cached result for {func.__name__}")
+                except Exception as e:
+                    logger.warning(f"Redis cache write failed: {e}")
+                
+                return result
+            except ImportError:
+                # Redis not available, execute without caching
+                return func(self, *args, **kwargs)
+        return wrapper
+    return decorator
 
 
 class GitHubService:
@@ -309,6 +350,7 @@ class GitHubService:
             logger.error(f"Failed to list repositories: {e}")
             return []
     
+    @cache_with_redis(expire_seconds=300)  # Cache for 5 minutes
     def search_pull_requests(
         self, 
         repo_name: Optional[str] = None,
@@ -316,7 +358,7 @@ class GitHubService:
         author: Optional[str] = None,
         max_results: int = 20
     ) -> List[Dict[str, Any]]:
-        """Search for pull requests"""
+        """Search for pull requests with caching"""
         try:
             prs = []
             
@@ -351,40 +393,61 @@ class GitHubService:
                         }
                     })
             else:
-                # Search across all accessible repositories
+                # Search across all accessible repositories - FULLY OPTIMIZED VERSION
                 user = self.client.get_user()
-                query = f"is:pr is:{state if state != 'all' else 'open'} author:{author or user.login}"
+                
+                # Use GitHub's native search qualifiers for maximum efficiency
+                # 'is:merged' is separate from 'is:closed' in GitHub's search API!
+                if state == "merged":
+                    query = f"is:pr is:merged author:{author or user.login}"
+                    pr_state = "merged"
+                elif state == "all":
+                    query = f"is:pr author:{author or user.login}"
+                    pr_state = None  # Will use actual state from issue
+                else:
+                    # open or closed
+                    query = f"is:pr is:{state} author:{author or user.login}"
+                    pr_state = state
                 
                 search_results = self.client.search_issues(query=query)
                 
-                for issue in list(search_results)[:max_results]:
+                # Limit to max_results to avoid excessive API calls
+                issue_list = list(search_results)[:max_results]
+                
+                for issue in issue_list:
                     if not hasattr(issue, 'pull_request'):
                         continue
                     
-                    # Get full PR data
-                    pr = issue.repository.get_pull(issue.number)
-                    
-                    prs.append({
-                        "id": pr.id,
-                        "repository_id": pr.base.repo.id,
-                        "pr_number": pr.number,
-                        "title": pr.title,
-                        "description": pr.body,
-                        "author": pr.user.login,
-                        "state": pr.state,
-                        "base_branch": pr.base.ref,
-                        "head_branch": pr.head.ref,
-                        "created_at": pr.created_at.isoformat() if pr.created_at else None,
-                        "updated_at": pr.updated_at.isoformat() if pr.updated_at else None,
-                        "repository": {
-                            "id": pr.base.repo.id,
-                            "owner": pr.base.repo.owner.login,
-                            "name": pr.base.repo.name,
-                            "full_name": pr.base.repo.full_name,
-                            "description": pr.base.repo.description,
-                            "language": pr.base.repo.language,
-                        }
-                    })
+                    # OPTIMIZATION: Use issue data directly - NO extra API calls needed!
+                    try:
+                        # Determine state: use pr_state if set, otherwise use issue.state
+                        final_state = pr_state if pr_state else issue.state
+                        
+                        # Build PR data from issue object (fast - no additional API calls!)
+                        prs.append({
+                            "id": issue.id,
+                            "repository_id": issue.repository.id,
+                            "pr_number": issue.number,
+                            "title": issue.title,
+                            "description": issue.body,
+                            "author": issue.user.login,
+                            "state": final_state,
+                            "base_branch": None,  # Not available in search results
+                            "head_branch": None,  # Not available in search results
+                            "created_at": issue.created_at.isoformat() if issue.created_at else None,
+                            "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
+                            "repository": {
+                                "id": issue.repository.id,
+                                "owner": issue.repository.owner.login,
+                                "name": issue.repository.name,
+                                "full_name": issue.repository.full_name,
+                                "description": issue.repository.description,
+                                "language": issue.repository.language,
+                            }
+                        })
+                    except Exception as e:
+                        logger.warning(f"Failed to process PR {issue.number}: {e}")
+                        continue
             
             logger.info(f"Found {len(prs)} pull requests")
             return prs

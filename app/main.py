@@ -2,7 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.logging import logger
+from app.core.middleware import MetricsMiddleware, RequestLoggingMiddleware
 from app.api.v1.router import api_router
+from app.api.v1.endpoints import metrics as metrics_endpoint
 
 
 # Create FastAPI application
@@ -22,6 +24,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add custom middleware
+app.add_middleware(MetricsMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.on_event("startup")
@@ -49,6 +55,7 @@ async def shutdown_event():
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(metrics_endpoint.router)
 
 
 @app.get("/")
@@ -59,16 +66,7 @@ async def root():
         "version": settings.APP_VERSION,
         "docs": "/docs",
         "health": "/api/v1/health",
-    }
-
-
-@app.get("/metrics")
-async def metrics():
-    """Metrics endpoint for monitoring"""
-    # In production, integrate with Prometheus
-    return {
-        "status": "metrics_placeholder",
-        "message": "Integrate with Prometheus for production metrics",
+        "metrics": "/metrics"
     }
 
 

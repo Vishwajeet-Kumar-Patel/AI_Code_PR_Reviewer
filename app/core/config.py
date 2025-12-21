@@ -26,6 +26,17 @@ class Settings(BaseSettings):
     # GitHub
     GITHUB_TOKEN: Optional[str] = None
     GITHUB_WEBHOOK_SECRET: Optional[str] = None
+    GITHUB_CLIENT_ID: Optional[str] = None
+    GITHUB_CLIENT_SECRET: Optional[str] = None
+    
+    # JWT & Security
+    JWT_SECRET_KEY: str = "CHANGE_THIS_TO_RANDOM_SECRET_KEY_IN_PRODUCTION"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    
+    # OAuth2
+    OAUTH_REDIRECT_URI: str = "http://localhost:3000/auth/callback"
     
     # OpenAI
     OPENAI_API_KEY: Optional[str] = None
