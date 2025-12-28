@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
     review, repository, health, auth, websocket, 
-    webhooks, analytics, plugins, organizations, security
+    webhooks, analytics, plugins, organizations, security,
+    ml_training, code_fixes
 )
 
 
@@ -19,3 +20,7 @@ api_router.include_router(analytics.router)
 api_router.include_router(plugins.router)
 api_router.include_router(organizations.router)
 api_router.include_router(security.router)
+
+# New advanced features
+api_router.include_router(ml_training.router, prefix="/ml", tags=["Machine Learning"])
+api_router.include_router(code_fixes.router, prefix="/code-fixes", tags=["Code Fixes"])
