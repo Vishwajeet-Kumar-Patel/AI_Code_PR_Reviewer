@@ -278,3 +278,56 @@ Keep the summary professional, concise, and actionable.
 """
         
         return prompt
+    
+    async def get_completion(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000
+    ) -> str:
+        """
+        Get a simple completion from the AI model
+        
+        Args:
+            prompt: The prompt to send to the AI
+            model: Model to use (optional, uses default if not specified)
+            temperature: Sampling temperature (0.0 to 1.0)
+            max_tokens: Maximum tokens to generate
+            
+        Returns:
+            The AI's response text
+        """
+        try:
+            if self.provider == "openai":
+                response = await openai.ChatCompletion.acreate(
+                    model=model or self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful code review assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                return response.choices[0].message.content
+            
+            elif self.provider == "gemini":
+                response = self.gemini_model.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": temperature,
+                        "max_output_tokens": max_tokens
+                    }
+                )
+                return response.text
+            
+            else:
+                raise ValueError(f"Unknown AI provider: {self.provider}")
+                
+        except Exception as e:
+            logger.error(f"Error getting AI completion: {e}")
+            raise
+
+
+# Singleton instance (with RAG disabled to avoid startup delays)
+ai_service = AIService(rag_service=None)

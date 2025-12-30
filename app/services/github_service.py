@@ -454,3 +454,7 @@ class GitHubService:
         except GithubException as e:
             logger.error(f"Failed to search pull requests: {e}")
             return []
+
+
+# Singleton instance
+github_service = GitHubService()

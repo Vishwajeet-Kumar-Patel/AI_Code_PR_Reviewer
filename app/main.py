@@ -37,14 +37,14 @@ async def startup_event():
     logger.info(f"Debug mode: {settings.DEBUG}")
     logger.info(f"AI Provider: {settings.AI_PROVIDER}")
     
-    # Initialize services
-    try:
-        from app.services import RAGService
-        rag_service = RAGService()
-        stats = rag_service.get_collection_stats()
-        logger.info(f"Vector DB initialized with {stats.get('document_count', 0)} documents")
-    except Exception as e:
-        logger.warning(f"Failed to initialize vector DB: {e}")
+    # Initialize services (optional - comment out if causing issues)
+    # try:
+    #     from app.services import RAGService
+    #     rag_service = RAGService()
+    #     stats = rag_service.get_collection_stats()
+    #     logger.info(f"Vector DB initialized with {stats.get('document_count', 0)} documents")
+    # except Exception as e:
+    #     logger.warning(f"Failed to initialize vector DB: {e}")
 
 
 @app.on_event("shutdown")
@@ -54,7 +54,7 @@ async def shutdown_event():
 
 
 # Include API router
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router)
 app.include_router(metrics_endpoint.router)
 
 
@@ -65,7 +65,7 @@ async def root():
         "message": "AI-Powered Code & PR Review System",
         "version": settings.APP_VERSION,
         "docs": "/docs",
-        "health": "/api/v1/health",
+        "health": "/health",
         "metrics": "/metrics"
     }
 
